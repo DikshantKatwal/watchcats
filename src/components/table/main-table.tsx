@@ -7,7 +7,6 @@ import {
     useReactTable,
     type VisibilityState,
 } from "@tanstack/react-table"
-
 import {
     Table,
     TableBody,
@@ -16,10 +15,9 @@ import {
     TableHeader,
     TableRow,
 } from "../../components/ui/table"
-
 import { DataTablePagination } from "../../components/table/pagination"
 import { MainTableHeader } from "../../components/table/table-header"
-import { useState } from "react"
+import { memo, useState, useCallback } from "react"
 import { Skeleton } from "../../components/ui/skeleton"
 
 interface DataTableProps<TData, TValue> {
@@ -27,23 +25,47 @@ interface DataTableProps<TData, TValue> {
     data: TData[]
     isLoading: boolean
     pageCount: number
-    pagination: {
-        pageIndex: number
-        pageSize: number
-    }
-    setPagination: React.Dispatch<
-        React.SetStateAction<{
-            pageIndex: number
-            pageSize: number
-        }>
-    >
+    pagination: { pageIndex: number; pageSize: number }
+    setPagination: React.Dispatch<React.SetStateAction<{ pageIndex: number; pageSize: number }>>
     sorting: SortingState
     setSorting: React.Dispatch<React.SetStateAction<SortingState>>
     columnFilters: ColumnFiltersState
     setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>
+    filterValue: string
+    setFilterValue: React.Dispatch<React.SetStateAction<string>>
 }
 
-export function DataTable<TData, TValue>({
+// ── Memoized row — prevents all rows re-rendering when one changes ──────────
+const MemoTableRow = memo(
+    ({ row }: { row: ReturnType<ReturnType<typeof useReactTable>["getRowModel"]>["rows"][0] }) => (
+        <TableRow>
+            {row.getVisibleCells().map((cell) => (
+                <TableCell key={cell.id}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </TableCell>
+            ))}
+        </TableRow>
+    )
+)
+
+// ── Skeleton rows — stable, no deps ───────────────────────────────────────
+const SkeletonRows = memo(
+    ({ pageSize, colCount }: { pageSize: number; colCount: number }) => (
+        <>
+            {Array.from({ length: pageSize }).map((_, i) => (
+                <TableRow key={i}>
+                    {Array.from({ length: colCount }).map((_, j) => (
+                        <TableCell key={j}>
+                            <Skeleton className="h-4 w-full" />
+                        </TableCell>
+                    ))}
+                </TableRow>
+            ))}
+        </>
+    )
+)
+
+function DataTableInner<TData, TValue>({
     columns,
     data,
     pageCount,
@@ -54,11 +76,17 @@ export function DataTable<TData, TValue>({
     setSorting,
     columnFilters,
     setColumnFilters,
+    filterValue,
+    setFilterValue,
 }: DataTableProps<TData, TValue>) {
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
     const [rowSelection, setRowSelection] = useState({})
 
-    // eslint-disable-next-line react-hooks/incompatible-library
+    const handleSortingChange = useCallback(setSorting, [setSorting])
+    const handleFiltersChange = useCallback(setColumnFilters, [setColumnFilters])
+    const handlePaginationChange = useCallback(setPagination, [setPagination])
+    const handleGlobalFilterChange = useCallback(setFilterValue, [setFilterValue])
+
     const table = useReactTable({
         data,
         columns,
@@ -67,13 +95,15 @@ export function DataTable<TData, TValue>({
         manualSorting: true,
         manualPagination: true,
         pageCount,
-        onSortingChange: setSorting,
-        onColumnFiltersChange: setColumnFilters,
-        onPaginationChange: setPagination,
+        onSortingChange: handleSortingChange,
+        onColumnFiltersChange: handleFiltersChange,
+        onPaginationChange: handlePaginationChange,
         onColumnVisibilityChange: setColumnVisibility,
         onRowSelectionChange: setRowSelection,
+        onGlobalFilterChange: handleGlobalFilterChange,
         state: {
             sorting,
+            globalFilter: filterValue,
             columnFilters,
             columnVisibility,
             rowSelection,
@@ -81,20 +111,20 @@ export function DataTable<TData, TValue>({
         },
     })
 
+    const rows = table.getRowModel().rows
 
     return (
-        <div>
-            <MainTableHeader table={table} />
+        <div className="border-1 rounded-lg p-2">
+            <MainTableHeader table={table} filterValue={filterValue} />
 
             <div className="rounded-md ">
                 <div className="max-h-100 overflow-y-auto">
                     <Table className="w-full">
-                        {/* ✅ Sticky header */}
-                        <TableHeader className="sticky top-0 z-10 ">
+                        <TableHeader className="sticky top-0 z-10">
                             {table.getHeaderGroups().map((headerGroup) => (
                                 <TableRow key={headerGroup.id}>
                                     {headerGroup.headers.map((header) => (
-                                        <TableHead key={header.id} className="">
+                                        <TableHead key={header.id}>
                                             {header.isPlaceholder
                                                 ? null
                                                 : flexRender(
@@ -109,34 +139,15 @@ export function DataTable<TData, TValue>({
 
                         <TableBody>
                             {isLoading ? (
-                                Array.from({ length: pagination.pageSize }).map((_, i) => (
-                                    <TableRow key={i}>
-                                        {columns.map((_, j) => (
-                                            <TableCell key={j}>
-                                                <Skeleton className="h-4 w-full" />
-                                            </TableCell>
-                                        ))}
-                                    </TableRow>
-                                ))
-                            ) : data.length > 0 ? (
-                                table.getRowModel().rows.map((row) => (
-                                    <TableRow key={row.id}>
-                                        {row.getVisibleCells().map((cell) => (
-                                            <TableCell key={cell.id}>
-                                                {flexRender(
-                                                    cell.column.columnDef.cell,
-                                                    cell.getContext()
-                                                )}
-                                            </TableCell>
-                                        ))}
-                                    </TableRow>
-                                ))
+                                <SkeletonRows
+                                    pageSize={pagination.pageSize}
+                                    colCount={columns.length}
+                                />
+                            ) : rows.length > 0 ? (
+                                rows.map((row) => <MemoTableRow key={row.id} row={row} />)
                             ) : (
                                 <TableRow>
-                                    <TableCell
-                                        colSpan={columns.length}
-                                        className="h-24 text-center"
-                                    >
+                                    <TableCell colSpan={columns.length} className="h-24 text-center">
                                         No results.
                                     </TableCell>
                                 </TableRow>
@@ -150,3 +161,5 @@ export function DataTable<TData, TValue>({
         </div>
     )
 }
+
+export const DataTable = memo(DataTableInner) as typeof DataTableInner

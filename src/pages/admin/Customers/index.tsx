@@ -14,36 +14,20 @@ export default function Customer() {
     })
     const [sorting, setSorting] = useState<SortingState>([])
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-    // const { data, isLoading } = useQuery({
-    //     queryKey: ["comments", pagination],
-    //     queryFn: async () => {
-    //         const start = pagination.pageIndex * pagination.pageSize
-    //         const limit = pagination.pageSize
-    //         const res = await fetch(
-    //             `http://localhost:8001/api/v1/admin/users/profiles/?offset=${start}&limit=${limit}`
-    //         )
-
-    //         const response: PaginatedResponse<TUser> = await res.json()
-    //         const rows = response.result
-    //         const total = response.count
-    //         return {
-    //             rows,
-    //             total: total,
-    //         }
-    //     },
-
-    // })
+    const [filterValue, setFilterValue] = useState<string>("")
     const params = {
         limit: String(pagination.pageSize),
         offset: String(pagination.pageIndex * pagination.pageSize),
+        ordering: sorting.map((s) => `${s.desc ? "-" : ""}${s.id}`).join(","),
+        search: filterValue,
     };
-
     const { data, isLoading } = useQuery({
         queryKey: ['users', params],
         queryFn: () => usersApi.list(params),
         refetchOnWindowFocus: false,
         refetchOnMount: false,
     });
+
     return (
         <div className="container mx-auto py-10">
             <DataTable
@@ -57,6 +41,8 @@ export default function Customer() {
                 setSorting={setSorting}
                 columnFilters={columnFilters}
                 setColumnFilters={setColumnFilters}
+                filterValue={filterValue}
+                setFilterValue={setFilterValue}
             />
         </div>
     )

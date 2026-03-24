@@ -72,7 +72,6 @@ const User = () => {
             ...data,
             numbers: (data.numbers || []).map((num) => (num.value))
         }
-        console.log(payload)
     }
     useEffect(() => {
         if (data) {

@@ -39,6 +39,7 @@ export const columns: ColumnDef<TUser>[] = [
         enableHiding: false,
     },
     {
+        id: "first_name",
         accessorKey: "full_name",
         header: ({ column }) => (
             <DataTableColumnHeader column={column} title="Full Name" />

@@ -6,7 +6,7 @@ import {
 } from "react"
 import { authApi } from "../../api/auth"
 import { AuthContext } from "./useAuthContext"
-import { ApiError, tokenStore } from "../../api/client"
+import { ApiError, logoutHandler, tokenStore } from "../../api/client"
 
 
 
@@ -20,6 +20,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAccessTokenState(token)
     }, [])
 
+
+
+    const logout = useCallback(() => {
+        authApi.logout().catch(() => { })
+        setAccessToken(null)
+    }, [setAccessToken])
+
+    useEffect(() => {
+        logoutHandler.register(logout)
+    }, [logout])
+
     useEffect(() => {
         authApi
             .refresh()
@@ -32,13 +43,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             })
             .finally(() => setIsLoading(false))
     }, [setAccessToken])
-
-    const logout = useCallback(() => {
-        authApi.logout().catch(() => { })
-        setAccessToken(null)
-    }, [setAccessToken])
-
-
     return (
         <AuthContext.Provider
             value={{
